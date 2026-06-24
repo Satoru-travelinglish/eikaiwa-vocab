@@ -299,9 +299,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
   <div class="sl">📷 写真から追加</div>
   <div class="upload-box" onclick="document.getElementById('photo-in').click()">
     <div class="uico">📸</div>
-    <p>先生のメモ写真を選択<br><strong>タップして撮影 / 選択</strong></p>
+    <p>カメラで撮影 または<br><strong>写真フォルダから選択</strong></p>
   </div>
-  <input type="file" id="photo-in" accept="image/*" capture="environment" style="display:none">
+  <input type="file" id="photo-in" accept="image/*" style="display:none">
   <div class="drow">
     <label>レッスン日：</label>
     <input type="date" id="lesson-date">
@@ -357,9 +357,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <!-- SETTINGS -->
 <div id="screen-settings" class="screen">
   <div class="scrd">
-    <h3>🔑 Claude API キー</h3>
-    <div class="fg"><input type="password" id="api-in" placeholder="sk-ant-..."></div>
-    <p style="font-size:.75rem;color:var(--muted);margin-bottom:8px"><a href="https://console.anthropic.com/" target="_blank" style="color:var(--primary)">console.anthropic.com</a> で取得できます</p>
+    <h3>🔑 AI機能の設定</h3>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:10px;line-height:1.6">写真からの自動抽出・作文添削に使います。<strong>このキーはあなたのブラウザにのみ保存され、他のユーザーには一切見えません。</strong><br><a href="https://console.anthropic.com/" target="_blank" style="color:var(--primary)">console.anthropic.com</a> で無料取得できます。</p>
+    <div class="fg"><input type="password" id="api-in" placeholder="sk-ant-api03-..." autocomplete="off"></div>
     <button class="btn btn-p btn-sm" onclick="saveKey()">保存</button>
     <div id="api-st" style="font-size:.78rem;margin-top:7px"></div>
   </div>
