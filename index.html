@@ -358,8 +358,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <div id="screen-settings" class="screen">
   <div class="scrd">
     <h3>🔑 AI機能の設定</h3>
-    <p style="font-size:.78rem;color:var(--muted);margin-bottom:10px;line-height:1.6">写真からの自動抽出・作文添削に使います。<strong>このキーはあなたのブラウザにのみ保存され、他のユーザーには一切見えません。</strong><br><a href="https://console.anthropic.com/" target="_blank" style="color:var(--primary)">console.anthropic.com</a> で無料取得できます。</p>
-    <div class="fg"><input type="password" id="api-in" placeholder="sk-ant-api03-..." autocomplete="off"></div>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:10px;line-height:1.6">写真からの自動抽出・作文添削に使います。<strong>このキーはあなたのブラウザにのみ保存され、他のユーザーには一切見えません。</strong><br><a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--primary)">aistudio.google.com</a> で無料取得できます（Googleアカウントのみ・カード不要）。</p>
+    <div class="fg"><input type="password" id="api-in" placeholder="AIzaSy..." autocomplete="off"></div>
     <button class="btn btn-p btn-sm" onclick="saveKey()">保存</button>
     <div id="api-st" style="font-size:.78rem;margin-top:7px"></div>
   </div>
@@ -442,17 +442,18 @@ function speak(text,rate=0.88){
   window.speechSynthesis.speak(u);
 }
 
-// ── Claude API helper ────────────────────────────────────────────────────
-async function callClaude(prompt,maxTokens=200,model='claude-haiku-4-5-20251001'){
+// ── Gemini API helper ────────────────────────────────────────────────────
+const GEMINI_MODEL='gemini-2.0-flash';
+async function callGemini(parts){
   const key=getKey(); if(!key)throw new Error('APIキーが設定されていません');
-  const res=await fetch('https://api.anthropic.com/v1/messages',{
+  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,{
     method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-    body:JSON.stringify({model,max_tokens:maxTokens,messages:[{role:'user',content:prompt}]})
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({contents:[{parts}]})
   });
   if(!res.ok){const e=await res.json();throw new Error(e.error?.message||'APIエラー')}
   const d=await res.json();
-  return d.content[0].text.trim();
+  return d.candidates[0].content.parts[0].text.trim();
 }
 
 // ── SM-2 ─────────────────────────────────────────────────────────────────
@@ -712,10 +713,9 @@ async function checkWriting(){
   const fb=document.getElementById('wp-fb');
   fb.className='wpfb show';fb.textContent='添削中...';
   try{
-    const result=await callClaude(
-      `英語学習者（日本語話者）が「${w.english}」という表現を使って文を作りました。\n\n"${sentence}"\n\n以下を評価してください（合計3文以内、日本語で、励ます口調で）:\n1. 文法・自然さの評価\n2. 改善案（あれば具体的な修正文）\n3. 一言応援メッセージ`,
-      350
-    );
+    const result=await callGemini([{text:
+      `英語学習者（日本語話者）が「${w.english}」という表現を使って文を作りました。\n\n"${sentence}"\n\n以下を評価してください（合計3文以内、日本語で、励ます口調で）:\n1. 文法・自然さの評価\n2. 改善案（あれば具体的な修正文）\n3. 一言応援メッセージ`
+    }]);
     fb.textContent=result;
     document.getElementById('wp-next-btn').style.display=wp.idx<wp.words.length-1?'inline-flex':'none';
   }catch(e){
@@ -795,7 +795,7 @@ async function genDefManual(){
   const key=getKey();if(!key){toast('設定でAPIキーを入力してください');return}
   const btn=document.querySelector('.gen-btn');btn.textContent='生成中...';btn.disabled=true;
   try{
-    const def=await callClaude(`Define "${en}" in simple English for a language learner. Use 10-15 words max. Reply with only the definition, no quotes.`);
+    const def=await callGemini([{text:`Define "${en}" in simple English for a language learner. Use 10-15 words max. Reply with only the definition, no quotes.`}]);
     document.getElementById('m-def').value=def;
   }catch(e){toast('エラー: '+e.message)}
   finally{btn.textContent='✨ 自動生成';btn.disabled=false}
@@ -806,28 +806,23 @@ async function doOCR(file){
   showOv('写真を解析中...');
   try{
     const b64=await toB64(file);
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:'claude-opus-4-7',max_tokens:2048,messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:file.type,data:b64}},
-        {type:'text',text:`この画像は英会話レッスンの先生が書いたメモです。単語・熟語・文法・会話表現など全てを抽出してください。
+    const prompt=`この画像は英会話レッスンの先生が書いたメモです。単語・熟語・文法・会話表現など全てを抽出してください。
 
 以下のJSON配列のみ返してください:
 [{
   "english": "英語表現（必須）",
   "japanese": "日本語の意味",
-  "englishDef": "簡単な英語での説明（15語以内、例: to do something nice for someone you wronged）",
+  "englishDef": "簡単な英語での説明（15語以内）",
   "type": "word/phrase/grammar/expression",
   "example": "自然な英語例文（1文）",
   "exampleJa": "例文の日本語訳",
   "notes": "補足があれば"
-}]`}
-      ]}]})
-    });
-    if(!res.ok){const e=await res.json();throw new Error(e.error?.message||'APIエラー')}
-    const data=await res.json();
-    const m=data.content[0].text.trim().match(/\[[\s\S]*\]/);
+}]`;
+    const text=await callGemini([
+      {inline_data:{mime_type:file.type,data:b64}},
+      {text:prompt}
+    ]);
+    const m=text.match(/\[[\s\S]*\]/);
     if(!m)throw new Error('単語を抽出できませんでした');
     showExtracted(JSON.parse(m[0]));
   }catch(e){toast('エラー: '+e.message)}
@@ -893,7 +888,7 @@ function fmtDate(d){if(!d||d==='日付なし')return d;const[y,m,day]=d.split('-
 function delWord(id){if(!confirm('削除しますか？'))return;db.words=db.words.filter(w=>String(w.id)!==String(id));saveDB();renderDict();renderHome();toast('削除しました')}
 
 // ── Settings ──────────────────────────────────────────────────────────────
-function saveKey(){const k=document.getElementById('api-in').value.trim();if(!k.startsWith('sk-ant-')){document.getElementById('api-st').innerHTML='<span style="color:var(--danger)">⚠️ sk-ant- で始まるキーを入力</span>';return}localStorage.setItem('ev-key',k);document.getElementById('api-in').value='';document.getElementById('api-st').innerHTML='<span style="color:var(--success)">✓ 保存しました</span>'}
+function saveKey(){const k=document.getElementById('api-in').value.trim();if(!k.startsWith('AIza')){document.getElementById('api-st').innerHTML='<span style="color:var(--danger)">⚠️ AIza で始まるGemini APIキーを入力してください</span>';return}localStorage.setItem('ev-key',k);document.getElementById('api-in').value='';document.getElementById('api-st').innerHTML='<span style="color:var(--success)">✓ 保存しました</span>'}
 function saveSettings(){db.settings.timer=parseInt(document.getElementById('s-timer').value)||15;db.settings.maxCards=parseInt(document.getElementById('s-max').value)||20;db.settings.dir=document.getElementById('s-dir').value;db.settings.tts=parseInt(document.getElementById('s-tts').value);saveDB();toast('設定を保存しました')}
 function exportData(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}));a.download=`eikaiwa-${tod()}.json`;a.click()}
 function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const imp=JSON.parse(ev.target.result);if(!imp.words)throw 0;const ex=new Set(db.words.map(w=>w.english.toLowerCase()));const nw=imp.words.filter(w=>!ex.has(w.english.toLowerCase()));db.words=[...db.words,...nw];saveDB();renderHome();toast(`${nw.length}件追加`)}catch{toast('インポート失敗')}};r.readAsText(f);e.target.value=''}
